@@ -68,7 +68,7 @@
     <profile>
       <id>scala-2.11.x</id>
       <properties>
-        <scala.version>2.11.6</scala.version>
+        <scala.version>2.11.8</scala.version>
         <scala.repoVersion>2.11</scala.repoVersion>
         <scalaArm.scalaVersion>2.11</scalaArm.scalaVersion>
         <scalaArm.libVersion>1.4</scalaArm.libVersion>
