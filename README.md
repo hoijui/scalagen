@@ -43,7 +43,7 @@ Some elements are not transformed correctly for various reasons and will need ma
 
 Scalagen development instructions are here https://github.com/mysema/scalagen/wiki/Scalagen-development
 
-Basic, common instructions when developping (installs dev versions into the local maven repo :
+Basic, common instructions when developing (installs dev versions into the local maven repo):
 
     cd scalagen
     mvn -Pscala-2.11.x -DskipTests install
