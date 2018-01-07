@@ -2,7 +2,7 @@ lazy val commonsCollectionsVersion = "4.01"
 lazy val commonsLangVersion = "3.0.1"
 lazy val querydslVersion = "2.3.0"
 libraryDependencies ++= Seq(
-  "com.github.javaparser" % "javaparser-core" % "2.5.1",
+  "com.github.javaparser" % "javaparser-core" % "3.5.8",
   "net.sourceforge.collections" % "collections-generic" % commonsCollectionsVersion,
   "org.apache.commons" % "commons-lang3" % commonsLangVersion,
   "org.apache.commons" % "commons-io" % "1.3.2",

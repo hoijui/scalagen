@@ -1,11 +1,6 @@
 package com.mysema.scalagen
 
-import com.github.javaparser.ast.CompilationUnit
-import com.github.javaparser.ast.DocumentableNode
-import com.github.javaparser.ast.ImportDeclaration
-import com.github.javaparser.ast.Node
-import com.github.javaparser.ast.PackageDeclaration
-import com.github.javaparser.ast.TypeParameter
+import com.github.javaparser.ast._
 import com.github.javaparser.ast.body._
 import com.github.javaparser.ast.comments._
 import com.github.javaparser.ast.expr._
@@ -13,6 +8,8 @@ import com.github.javaparser.ast.stmt._
 import com.github.javaparser.ast.`type`._
 import com.github.javaparser.ast.visitor.GenericVisitor
 import java.util.{ArrayList, Collections}
+
+import com.github.javaparser.ast.nodeTypes.NodeWithJavadoc
 import com.mysema.scalagen.ast.BeginClosureExpr
 
 /**
@@ -20,18 +17,18 @@ import com.mysema.scalagen.ast.BeginClosureExpr
  */
 abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   
-  protected def filter[T <: Node](node: T, arg: A): T = {
-    if (node != null) node.accept(this, arg).asInstanceOf[T] else node
+  protected def filter[T <: Node](node: java.util.Optional[T], arg: A): T = {
+    if (node.isPresent) node.get().accept(this, arg).asInstanceOf[T] else null
   }
   
-  protected def filter[T <: Node](list: JavaList[T], arg: A): JavaList[T]  = {
+  protected def filter[T <: Node](list: NodeList[T], arg: A): NodeList[T]  = {
     if (list == null) {
-      return null
+      null
     } else if (list.isEmpty) {
-       Collections.emptyList[T]() 
+       new NodeList[T] 
     } else {
       //list.map(_.accept(this, arg).asInstanceOf[T]).filter(_ != null)
-      val rv = new ArrayList[T](list.size)
+      val rv = new NodeList[T]()
       val it = list.iterator()
       while (it.hasNext) {
         val node = it.next().accept(this, arg).asInstanceOf[T]
@@ -44,7 +41,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def withCommentsFrom[T <: Node](origNode: Node, arg: A)(node: => T): T = {
     val newNode = node
     val comment = origNode match {
-      case d: DocumentableNode => Option(javadocFor(d, arg))
+      case d: NodeWithJavadoc[_] => Option(javadocFor(d, arg))
       case _ => None
     }
     newNode.setComment(comment.getOrElse(origNode.getComment))
@@ -85,10 +82,9 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: ArrayCreationExpr, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new ArrayCreationExpr()    
-    rv.setArrayCount(n.getArrayCount)
-    rv.setDimensions(filter(n.getDimensions, arg))
+    rv.setLevels(n.getLevels)
     rv.setInitializer(filter(n.getInitializer, arg))
-    rv.setType(filter(n.getType, arg))   
+    rv.setElementType(filter(n.getElementType, arg))   
     rv
   }
 
@@ -121,18 +117,18 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
     rv
   }
 
-  def visit(n: BlockStmt, arg: A): Node = withCommentsFrom(n, arg) { new BlockStmt(filter(n.getStmts, arg)) }
+  def visit(n: BlockStmt, arg: A): Node = withCommentsFrom(n, arg) { new BlockStmt(filter(n.getStatements, arg)) }
 
   def visit(n: BooleanLiteralExpr, arg: A): Node = new BooleanLiteralExpr(n.getValue)
 
-  def visit(n: BreakStmt, arg: A): Node = withCommentsFrom(n, arg) { new BreakStmt(n.getId) }
+  def visit(n: BreakStmt, arg: A): Node = withCommentsFrom(n, arg) { new BreakStmt(n.getLabel) }
 
   def visit(n: CastExpr, arg: A): Node = withCommentsFrom(n, arg) {
-    new CastExpr(filter(n.getType, arg), filter(n.getExpr, arg))    
+    new CastExpr(filter(n.getType, arg), filter(n.getExpression, arg))    
   }
 
   def visit(n: CatchClause, arg: A): Node = withCommentsFrom(n, arg) {
-    new CatchClause(filter(n.getParam, arg), filter(n.getCatchBlock, arg))
+    new CatchClause(filter(n.getParameter, arg), filter(n.getBody, arg))
   }
 
   def visit(n: CharLiteralExpr, arg: A): Node = new CharLiteralExpr(n.getValue)
@@ -142,8 +138,8 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def visit(n: ClassOrInterfaceDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new ClassOrInterfaceDeclaration()
     rv.setAnnotations(filter(n.getAnnotations, arg))
-    rv.setExtends(filter(n.getExtends, arg))
-    rv.setImplements(filter(n.getImplements, arg))
+    rv.setExtendedTypes(filter(n.getExtendedTypes, arg))
+    rv.setImplementedTypes(filter(n.getImplementedTypes, arg))
     rv.setInterface(n.isInterface)
     rv.setMembers(filter(n.getMembers, arg))
     rv.setModifiers(n.getModifiers)
@@ -152,7 +148,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
     rv
   }
 
-  private def javadocFor(n: DocumentableNode, arg: A) = {
+  private def javadocFor(n: NodeWithJavadoc, arg: A) = {
     val filtered = filter(n.getJavaDoc, arg)
     if (filtered == null)
       null
@@ -164,13 +160,13 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
     val rv = new ClassOrInterfaceType()
     rv.setName(n.getName)
     rv.setScope(filter(n.getScope, arg))
-    rv.setTypeArgs(filter(n.getTypeArgs, arg))
+    rv.setTypeArguments(filter(n.getTypeArguments, arg))
     rv
   }
 
   def visit(n: CompilationUnit, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new CompilationUnit()
-    rv.setPackage(filter(n.getPackage, arg))
+    rv.setPackageDeclaration(filter(n.getPackageDeclaration, arg))
     rv.setImports(filter(n.getImports, arg))
     rv.setTypes(filter(n.getTypes, arg))
     rv
@@ -187,16 +183,16 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def visit(n: ConstructorDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new ConstructorDeclaration()
     rv.setAnnotations(filter(n.getAnnotations, arg))
-    rv.setBlock(filter(n.getBlock, arg))
+    rv.setBody(filter(n.getBody, arg))
     rv.setModifiers(n.getModifiers)
     rv.setName(n.getName)
     rv.setParameters(filter(n.getParameters, arg))
-    rv.setThrows(filter(n.getThrows, arg))
+    rv.setThrownExceptions(filter(n.getThrownExceptions, arg))
     rv.setTypeParameters(filter(n.getTypeParameters, arg))
     rv
   }
 
-  def visit(n: ContinueStmt, arg: A): Node = withCommentsFrom(n, arg) { new ContinueStmt(n.getId) }
+  def visit(n: ContinueStmt, arg: A): Node = withCommentsFrom(n, arg) { new ContinueStmt(n.getLabel.orElse(null)) }
 
   def visit(n: DoStmt, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new DoStmt()
@@ -207,19 +203,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: DoubleLiteralExpr, arg: A): Node = new DoubleLiteralExpr(n.getValue)
 
-  def visit(n: EmptyMemberDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
-    val em = new EmptyMemberDeclaration()
-    em.setComment(javadocFor(n, arg))
-    em
-  }
-
   def visit(n: EmptyStmt, arg: A): Node = new EmptyStmt()
-
-  def visit(n: EmptyTypeDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
-    val em = new EmptyTypeDeclaration()
-    em.setComment(javadocFor(n, arg))
-    em
-  }
 
   def visit(n: EnclosedExpr, arg: A): Node = withCommentsFrom(n, arg) {
     new EnclosedExpr(filter(n.getInner, arg))
@@ -228,7 +212,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def visit(n: EnumConstantDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new EnumConstantDeclaration()
     rv.setAnnotations(filter(n.getAnnotations, arg))
-    rv.setArgs(filter(n.getArgs, arg))
+    rv.setArguments(filter(n.getArguments, arg))
     rv.setClassBody(filter(n.getClassBody, arg))
     rv.setComment(javadocFor(n, arg))
     rv.setName(n.getName)
@@ -239,7 +223,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
     val rv = new EnumDeclaration()
     rv.setAnnotations(filter(n.getAnnotations, arg))
     rv.setEntries(filter(n.getEntries, arg))
-    rv.setImplements(filter(n.getImplements, arg))
+    rv.setImplementedTypes(filter(n.getImplementedTypes, arg))
     rv.setComment(javadocFor(n, arg))
     rv.setMembers(filter(n.getMembers, arg))
     rv.setModifiers(n.getModifiers)
@@ -249,10 +233,10 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: ExplicitConstructorInvocationStmt, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new ExplicitConstructorInvocationStmt()
-    rv.setArgs(filter(n.getArgs, arg))
-    rv.setExpr(filter(n.getExpr, arg))
+    rv.setArguments(filter(n.getArguments, arg))
+    rv.setExpression(filter(n.getExpression, arg))
     rv.setThis(n.isThis)    
-    rv.setTypeArgs(filter(n.getTypeArgs, arg))
+    rv.setTypeArguments(filter(n.getTypeArguments, arg))
     rv
   }
 
@@ -283,7 +267,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: ForStmt, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new ForStmt()
-    rv.setInit(filter(n.getInit, arg))
+    rv.setInitialization(filter(n.getInitialization, arg))
     rv.setCompare(filter(n.getCompare, arg))
     rv.setUpdate(filter(n.getUpdate, arg))
     rv.setBody(filter(n.getBody, arg))
@@ -305,29 +289,25 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def visit(n: InitializerDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new InitializerDeclaration()
     rv.setAnnotations(filter(n.getAnnotations, arg))
-    rv.setBlock(filter(n.getBlock, arg))
+    rv.setBody(filter(n.getBody, arg))
     rv.setStatic(n.isStatic)
     rv
   }
 
   def visit(n: InstanceOfExpr, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new InstanceOfExpr()
-    rv.setExpr(filter(n.getExpr, arg))
+    rv.setExpression(filter(n.getExpression, arg))
     rv.setType(filter(n.getType, arg))
     rv
   }
 
   def visit(n: IntegerLiteralExpr, arg: A): Node = new IntegerLiteralExpr(n.getValue)
 
-  def visit(n: IntegerLiteralMinValueExpr, arg: A): Node = new IntegerLiteralMinValueExpr()
-
   def visit(n: JavadocComment, arg: A): Node = new JavadocComment(n.getContent)
 
-  def visit(n: LabeledStmt, arg: A): Node = new LabeledStmt(n.getLabel, filter(n.getStmt, arg))    
+  def visit(n: LabeledStmt, arg: A): Node = new LabeledStmt(n.getLabel, filter(n.getStatement, arg))    
 
   def visit(n: LongLiteralExpr, arg: A): Node = new LongLiteralExpr(n.getValue)
-
-  def visit(n: LongLiteralMinValueExpr, arg: A): Node = new LongLiteralMinValueExpr()
 
   def visit(n: MarkerAnnotationExpr, arg: A): Node = withCommentsFrom(n, arg) {
     new MarkerAnnotationExpr(filter(n.getName, arg))
@@ -339,22 +319,21 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: MethodCallExpr, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new MethodCallExpr()
-    rv.setArgs(filter(n.getArgs, arg))
+    rv.setArguments(filter(n.getArguments, arg))
     rv.setName(n.getName)
     rv.setScope(filter(n.getScope, arg))
-    rv.setTypeArgs(filter(n.getTypeArgs, arg))
+    rv.setTypeArguments(filter(n.getTypeArguments, arg))
     rv
   }
 
   def visit(n: MethodDeclaration, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new MethodDeclaration()
     rv.setAnnotations(filter(n.getAnnotations, arg))
-    rv.setArrayCount(n.getArrayCount)
     rv.setBody(filter(n.getBody, arg))
     rv.setModifiers(n.getModifiers)
     rv.setName(n.getName)
     rv.setParameters(filter(n.getParameters, arg))
-    rv.setThrows(filter(n.getThrows, arg))
+    rv.setThrownExceptions(filter(n.getThrownExceptions, arg))
     rv.setType(filter(n.getType, arg))
     rv.setTypeParameters(filter(n.getTypeParameters, arg))
     rv
@@ -379,10 +358,10 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def visit(n: ObjectCreationExpr, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new ObjectCreationExpr()
     rv.setAnonymousClassBody(filter(n.getAnonymousClassBody, arg))
-    rv.setArgs(filter(n.getArgs, arg))
+    rv.setArguments(filter(n.getArguments, arg))
     rv.setScope(filter(n.getScope, arg))
     rv.setType(filter(n.getType, arg))
-    rv.setTypeArgs(filter(n.getTypeArgs, arg))
+    rv.setTypeArguments(filter(n.getTypeArguments, arg))
     rv
   }
 
@@ -401,35 +380,23 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
     rv
   }
 
-  def visit(n: MultiTypeParameter, arg: A): Node = withCommentsFrom(n, arg) {
-    val rv = new MultiTypeParameter()
+  def visit(n: UnionType, arg: A): Node = withCommentsFrom(n, arg) {
+    val rv = new UnionType()
     visit(n, rv, arg)
-    rv.setType(new UnionType(n.getType().getElements.map(tpe => filter(tpe, arg))))
-    rv
-  }
-
-  def visit(n: BaseParameter, rv: BaseParameter, arg: A): Node = withCommentsFrom(n, arg) {
-    rv.setAnnotations(filter(n.getAnnotations, arg))
-    rv.setId(filter(n.getId, arg))
-    rv.setModifiers(n.getModifiers)
+    rv.setElements(new UnionType(n.getElements.map(tpe => filter(tpe, arg))))
     rv
   }
 
   def visit(n: PrimitiveType, arg: A): Node = new PrimitiveType(n.getType)      
 
-  def visit(n: QualifiedNameExpr, arg: A): Node = withCommentsFrom(n, arg) {
-    val rv = new QualifiedNameExpr()
+  def visit(n: NameExpr, arg: A): Node = withCommentsFrom(n, arg) {
+    val rv = new NameExpr()
     rv.setName(n.getName)
-    rv.setQualifier(filter(n.getQualifier, arg))
     rv
   }
 
-  def visit(n: ReferenceType, arg: A): Node = withCommentsFrom(n, arg) {
-    new ReferenceType(filter(n.getType, arg), n.getArrayCount)
-  }
-
   def visit(n: ReturnStmt, arg: A): Node = withCommentsFrom(n, arg) {
-    new ReturnStmt(filter(n.getExpr, arg))
+    new ReturnStmt(filter(n.getExpression, arg))
   }
 
   def visit(n: SingleMemberAnnotationExpr, arg: A): Node = withCommentsFrom(n, arg) {
@@ -445,7 +412,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   def visit(n: SwitchEntryStmt, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new SwitchEntryStmt()
     rv.setLabel(filter(n.getLabel, arg))
-    rv.setStmts(filter(n.getStmts, arg))
+    rv.setStatements(filter(n.getStatements, arg))
     rv
   }
 
@@ -458,8 +425,8 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: SynchronizedStmt, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new SynchronizedStmt() 
-    rv.setExpr(filter(n.getExpr, arg))
-    rv.setBlock(filter(n.getBlock, arg))
+    rv.setExpression(filter(n.getExpression, arg))
+    rv.setBody(filter(n.getBody, arg))
     rv
   }
 
@@ -468,20 +435,16 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   }
 
   def visit(n: ThrowStmt, arg: A): Node = withCommentsFrom(n, arg) {
-    new ThrowStmt(filter(n.getExpr, arg))
+    new ThrowStmt(filter(n.getExpression, arg))
   }
 
   def visit(n: TryStmt, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new TryStmt()
     rv.setResources(filter(n.getResources, arg))
     rv.setTryBlock(filter(n.getTryBlock, arg))
-    rv.setCatchs(filter(n.getCatchs, arg))
+    rv.setCatchClauses(filter(n.getCatchClauses, arg))
     rv.setFinallyBlock(filter(n.getFinallyBlock, arg))
     rv
-  }
-
-  def visit(n: TypeDeclarationStmt, arg: A): Node = withCommentsFrom(n, arg) {
-    new TypeDeclarationStmt(filter(n.getTypeDeclaration, arg))
   }
 
   def visit(n: TypeParameter, arg: A): Node = withCommentsFrom(n, arg) {
@@ -489,27 +452,19 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
   }
 
   def visit(n: UnaryExpr, arg: A): Node = withCommentsFrom(n, arg) {
-    new UnaryExpr(filter(n.getExpr, arg), n.getOperator)    
+    new UnaryExpr(filter(n.getExpression, arg), n.getOperator)    
   }
 
   def visit(n: VariableDeclarationExpr, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new VariableDeclarationExpr()
     rv.setAnnotations(filter(n.getAnnotations, arg))
     rv.setModifiers(n.getModifiers)
-    rv.setType(filter(n.getType, arg))
-    rv.setVars(filter(n.getVars, arg))
+    rv.setVariables(filter(n.getVariables, arg))
     rv
   }
 
   def visit(n: VariableDeclarator, arg: A): Node = withCommentsFrom(n, arg) {
-    new VariableDeclarator(filter(n.getId, arg), filter(n.getInit, arg))
-  }
-
-  def visit(n: VariableDeclaratorId, arg: A): Node = withCommentsFrom(n, arg) {
-    val rv = new VariableDeclaratorId()
-    rv.setArrayCount(n.getArrayCount)
-    rv.setName(visitName(n.getName, arg))
-    rv
+    new VariableDeclarator(filter(n.getName, arg), filter(n.getInitializer, arg))
   }
 
   def visit(n: VoidType, arg: A): Node = new VoidType()
@@ -523,8 +478,8 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
 
   def visit(n: WildcardType, arg: A): Node = withCommentsFrom(n, arg) {
     val rv = new WildcardType()
-    rv.setExtends(filter(n.getExtends, arg))
-    rv.setSuper(filter(n.getSuper, arg))
+    rv.setExtendedTypes(filter(n.getExtendedTypes, arg))
+    rv.setSuperTypes(filter(n.getSuperTypes, arg))
     rv
   }
 
@@ -550,7 +505,7 @@ abstract class ModifierVisitor[A] extends GenericVisitor[Node, A] {
       n.getRange,
       filter(n.getParameters, arg),
       filter(n.getBody, arg),
-      n.isParametersEnclosed()
+      n.isEnclosingParameters
     )
 
   def visit(n: UnknownType, arg: A): Node =

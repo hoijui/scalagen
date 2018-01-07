@@ -14,7 +14,9 @@
 package com.mysema.scalagen
 
 import java.util.ArrayList
+
 import UnitTransformer._
+import com.github.javaparser.ast.NodeList
 
 object CompanionObject extends CompanionObject
 
@@ -28,7 +30,8 @@ class CompanionObject extends UnitTransformer {
   def transform(cu: CompilationUnit): CompilationUnit = {
     if (cu.getTypes != null) {
       val types = cu.getTypes.filter(!_.getModifiers.isObject)
-      val cuTypes = new ArrayList[TypeDecl](cu.getTypes)
+      val cuTypes = new NodeList[TypeDecl]()
+	    cuTypes.addAll(cu.getTypes)
       handleTypes(cu, types, cuTypes)
       cu.setTypes(cuTypes)
     }
@@ -67,7 +70,7 @@ class CompanionObject extends UnitTransformer {
       clazz.getMembers.get(0) match {
         case c: Constructor => {
           // remove private empty constructor
-          if (c.getModifiers.isPrivate && isEmpty(c.getParameters)) {
+          if (c.isPrivate && isEmpty(c.getParameters)) {
             members.remove(clazz)
           } 
         }
@@ -87,7 +90,7 @@ class CompanionObject extends UnitTransformer {
     }
     
     val staticMembers = t.getMembers.filter(isStatic)
-    if (!staticMembers.isEmpty) {
+    if (staticMembers.nonEmpty) {
       t.setMembers(t.getMembers.filterNot(staticMembers.contains))
       var companion = new ClassOrInterfaceDecl(OBJECT, false, t.getName)
       companion.setMembers(staticMembers)

@@ -13,11 +13,12 @@
  */
 package com.mysema.scalagen
 
-import java.lang.reflect.Modifier
-import com.github.javaparser.ast.body.ModifierSet
-import _root_.scala.collection.JavaConversions
-import _root_.scala.collection.Set
-import java.util.ArrayList
+import java.util
+import java.util.EnumSet
+
+import com.github.javaparser.ast.Modifier
+import com.github.javaparser.ast.NodeList
+import com.github.javaparser.ast.nodeTypes.NodeWithModifiers
 
 /**
  * Common helper methods for transformers and ScalaDumpVisitor
@@ -31,19 +32,23 @@ trait Helpers {
   val OBJECT   = 0x00004000
   val IMPLICIT = 0x00008000  
   
-  implicit def toRichModifiers(i: Int) = new RichModifiers(i)
+  implicit def toRichModifiers(i: util.EnumSet[Modifier]) = new RichModifiers(i)
   
-  class RichModifiers(i: Int) {
-    def isAbstract = ModifierSet.isAbstract(i)
-    def isFinal = ModifierSet.isFinal(i)
-    def isImplicit = ModifierSet.hasModifier(i, IMPLICIT)
-    def isLazy = ModifierSet.hasModifier(i, LAZY)
-    def isNative = ModifierSet.isNative(i)
-    def isObject = ModifierSet.hasModifier(i, OBJECT)
-    def isPrivate = ModifierSet.isPrivate(i)
-    def isProtected = ModifierSet.isProtected(i)
-    def isProperty = ModifierSet.hasModifier(i, PROPERTY)
-    def isPublic = ModifierSet.isPublic(i)
+  class RichModifiers(i: util.EnumSet[Modifier]) {
+    def isAbstract = i.contains(Modifier.ABSTRACT)
+    def isFinal = i.contains(Modifier.FINAL)
+	  // TODO ???
+    def isImplicit = false
+	  // TODO ???
+    def isLazy = false
+    def isNative = i.contains(Modifier.NATIVE)
+	  // TODO ???
+    def isObject = false
+    def isPrivate = i.contains(Modifier.NATIVE)
+    def isProtected = i.contains(Modifier.NATIVE)
+	  // TODO not sure I'm doing the right thing here. It looks like the modifiers are being abused with Scala specific flags?
+    def isProperty = false
+    def isPublic = i.contains(Modifier.NATIVE)
     def isStatic = ModifierSet.isStatic(i)
     def isStrictfp = ModifierSet.isStrictfp(i)
     def isSynchronized = ModifierSet.isSynchronized(i)
@@ -72,29 +77,29 @@ trait Helpers {
   implicit def toRichBlock(b: Block) = new RichBlockStmt(b)
   
   class RichBlockStmt(b: Block) {    
-    def apply(i: Int) = if (isEmpty) null else b.getStmts.get(i)
-    def isEmpty = b.getStmts == null || b.getStmts.isEmpty
+    def apply(i: Int) = if (isEmpty) null else b.getStatements.get(i)
+    def isEmpty = b.getStatements == null || b.getStatements.isEmpty
     def add(s: Statement) {
-      b.setStmts(b.getStmts :+ s)
+      b.setStatements(b.getStatements :+ s)
     }
     def addAll(s: List[Statement]) {
-      b.setStmts(b.getStmts ++ s)
+      b.setStatements(b.getStatements ++ s)
     }
     def remove(s: Statement) {
-      b.setStmts(b.getStmts.filterNot(_ == s))
+      b.setStatements(b.getStatements.filterNot(_ == s))
     }
     def removeAll(s: List[Statement]) {
-      b.setStmts(b.getStmts.filterNot(s.contains))
+      b.setStatements(b.getStatements.filterNot(s.contains))
     }
     def copy(): Block = {
       def block = new Block()
-      def stmts = new ArrayList[Statement]()
-      stmts.addAll(b.getStmts)
-      block.setStmts(stmts)
+      def stmts = new NodeList[Statement]()
+      stmts.addAll(b.getStatements)
+      block.setStatements(stmts)
       block
     }
     
-    def size = if (b.getStmts != null) b.getStmts.size else 0
+    def size = if (b.getStatements != null) b.getStatements.size else 0
   }  
     
   //@inline
@@ -110,9 +115,9 @@ trait Helpers {
   
   // TODO use pattern matching
   def getLazyInit(block: Block) = {
-    block.getStmts.get(0).asInstanceOf[If]
-      .getThenStmt.asInstanceOf[Block]
-      .getStmts().get(0).asInstanceOf[ExpressionStmt]
+    block.getStatements.get(0).asInstanceOf[If]
+	    .getThenStmt.asInstanceOf[Block]
+	    .getStatements.get(0).asInstanceOf[ExpressionStmt]
       .getExpression.asInstanceOf[Assign]
       .getValue
   }
@@ -135,10 +140,10 @@ trait Helpers {
   }
   
   def isStatic(member: BodyDecl): Boolean = member match {
-    case t: ClassOrInterfaceDecl => t.getModifiers.isStatic || t.getModifiers.isObject || t.isInterface
-    case t: TypeDecl => t.getModifiers.isStatic || t.getModifiers.isObject
-    case f: Field => f.getModifiers.isStatic
-    case m: Method => m.getModifiers.isStatic
+    case t: ClassOrInterfaceDecl => t.isStatic || t.getModifiers.isObject || t.isInterface
+    case t: TypeDecl => t.isStatic || t.getModifiers.isObject
+    case f: Field => f.isStatic
+    case m: Method => m.isStatic
     case i: Initializer => i.isStatic
     case _ => false
   }  

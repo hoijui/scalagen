@@ -15,10 +15,11 @@ package com.mysema.scalagen
 
 import com.github.javaparser.ast.visitor._
 import java.util.ArrayList
-import com.github.javaparser.ast.ImportDeclaration
-import com.github.javaparser.ast.expr.NameExpr
-import com.github.javaparser.ast.visitor.ModifierVisitorAdapter
+
+import com.github.javaparser.ast.{ImportDeclaration, NodeList}
 import UnitTransformer._
+import com.github.javaparser.ast.`type`.ClassOrInterfaceType
+import com.github.javaparser.ast.expr.{Name, SimpleName}
 
 /**
  * Annotations turns Annotation type declarations into normal classes which extend
@@ -37,27 +38,29 @@ class Annotations(targetVersion: ScalaVersion) extends UnitTransformerBase {
     if (targetVersion >= Scala210) {
       //StaticAnnotation was in the "scala" package in 2.9, so it was imported by default
       //in scala 2.10+, it was moved to the scala.annotation package, so we need an explicit import
-      arg.getImports().add(new ImportDeclaration(new NameExpr("scala.annotation.StaticAnnotation"), false, false))
+      arg.getImports.add(new ImportDeclaration(new Name("scala.annotation.StaticAnnotation"), false, false))
     }
     val clazz = new ClassOrInterfaceDecl()
-    clazz.setName(n.getName)    
-    clazz.setExtends(staticAnnotationType :: Nil)
+    clazz.setName(n.getName)
+	  val et = new NodeList[ClassOrInterfaceType]
+	  et.add(staticAnnotationType)
+    clazz.setExtendedTypes(et)
     clazz.setMembers(createMembers(n))
     clazz
   }
   
-  private def createMembers(n: AnnotationDecl): JavaList[BodyDecl] = {
+  private def createMembers(n: AnnotationDecl): NodeList[BodyDecl] = {
     // TODO : default values
     val params = n.getMembers.collect { case m: AnnotationMember => m }
-      .map(m => new Parameter(PROPERTY, m.getType, new VariableDeclaratorId(m.getName)))
+      .map(m => new Parameter(PROPERTY, m.getType, m.getName.clone))
       
-    if (!params.isEmpty) {
+    if (params.nonEmpty) {
       val constructor = new Constructor()
       constructor.setParameters(params)
-      constructor.setBlock(new Block())
+      constructor.setBody(new Block())
       constructor :: Nil
     } else {
-      Nil
+      new NodeList[BodyDecl]
     }
   }
     

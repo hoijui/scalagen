@@ -13,15 +13,11 @@
  */
 package com.mysema.scalagen 
 
-import com.github.javaparser.ast.Node
 import com.github.javaparser.ast.body._
 import com.github.javaparser.ast.expr._
 import com.github.javaparser.ast.stmt._
 import com.github.javaparser.ast.`type`._
-import com.github.javaparser.ast.visitor.ModifierVisitorAdapter
-import com.github.javaparser.ast.CompilationUnit
 import com.github.javaparser.ast.ImportDeclaration
-import java.util.ArrayList
 
 object Types extends Types
 
@@ -31,13 +27,13 @@ object Types extends Types
 trait Types {
   
   def extract(stmt: Statement): Statement = stmt match {
-    case b: Block => if (b.getStmts != null && b.getStmts.size == 1) b.getStmts.get(0) else b
+    case b: Block => if (b.getStatements != null && b.getStatements.size == 1) b.getStatements.get(0) else b
     case _ => stmt
   }
 
   object MaybeInBlock {
     def unapplySeq(statement: Statement): Option[Seq[Statement]] = statement match {
-      case b: Block if (b.getStmts != null) => Some(b.getStmts)
+      case b: Block if b.getStatements != null => Some(b.getStatements)
       case s => Some(Seq(s))
     }
   }
@@ -69,7 +65,7 @@ trait Types {
   }
   
   object incr {
-    def unapply(u: Unary) = if (u.getOperator.toString.endsWith("Increment")) Some(u.getExpr) else None
+    def unapply(u: Unary) = if (u.getOperator.toString.endsWith("Increment")) Some(u.getExpression) else None
   }
   
   object lt {
@@ -92,34 +88,34 @@ trait Types {
   }
     
   object Assign {
-    val assign = AssignExpr.Operator.assign
+    val assign = AssignExpr.Operator.ASSIGN
     def unapply(a: Assign) = Some(a.getOperator, a.getTarget, a.getValue)
   }
     
   object Binary {
-    val or = BinaryExpr.Operator.or
-    val and = BinaryExpr.Operator.and
-    val equals = BinaryExpr.Operator.equals
-    val notEquals = BinaryExpr.Operator.notEquals
-    val less = BinaryExpr.Operator.less
-    val greater = BinaryExpr.Operator.greater
+    val or = BinaryExpr.Operator.OR
+    val and = BinaryExpr.Operator.AND
+    val equals = BinaryExpr.Operator.EQUALS
+    val notEquals = BinaryExpr.Operator.NOT_EQUALS
+    val less = BinaryExpr.Operator.LESS
+    val greater = BinaryExpr.Operator.GREATER
     def unapply(b: Binary) = Some(b.getOperator, b.getLeft, b.getRight)    
   }
     
   object Block {
     //def unapply(b: Block) = Some(if (b != null) toScalaList(b.getStmts) else Nil)
     def unapply(s: Statement) = s match {
-      case b: Block => Some(if (b != null) toScalaList(b.getStmts) else Nil)
+      case b: Block => Some(if (b != null) toScalaList(b.getStatements) else Nil)
       case _ => Some(List(s))
     } 
   }
   
   object Cast {
-    def unapply(c: Cast) = Some(c.getExpr, c.getType)
+    def unapply(c: Cast) = Some(c.getExpression, c.getType)
   }
   
   object Catch {
-    def unapply(c: Catch) = Some(c.getParam, extract(c.getCatchBlock))
+    def unapply(c: Catch) = Some(c.getParameter, extract(c.getBody))
   }
   
   object ClassOrInterface {
@@ -131,8 +127,8 @@ trait Types {
   }
   
   object Constructor {
-    def unapply(c: Constructor) = Some(toScalaList(c.getParameters), extract(c.getBlock))
-    def unapply(c: ConstructorInvocation) = Some(c.isThis, toScalaList(c.getArgs))
+    def unapply(c: Constructor) = Some(toScalaList(c.getParameters), extract(c.getBody))
+    def unapply(c: ConstructorInvocation) = Some(c.isThis, toScalaList(c.getArguments))
   }
   
   object Enclosed {
@@ -144,7 +140,7 @@ trait Types {
   }
   
   object For {
-    def unapply(f: For) = Some(toScalaList(f.getInit), f.getCompare, toScalaList(f.getUpdate), extract(f.getBody))
+    def unapply(f: For) = Some(toScalaList(f.getInitialization), f.getCompare, toScalaList(f.getUpdate), extract(f.getBody))
   }
   
   object Foreach {
@@ -156,11 +152,11 @@ trait Types {
   }
   
   object InstanceOf {
-    def unapply(i: InstanceOf) = Some(i.getExpr, i.getType)
+    def unapply(i: InstanceOf) = Some(i.getExpression, i.getType)
   }
   
   object Initializer {
-    def unapply(i: Initializer) = Block.unapply(i.getBlock)
+    def unapply(i: Initializer) = Block.unapply(i.getBody)
   }
     
   object Literal {
@@ -174,7 +170,7 @@ trait Types {
   }
   
   object MethodCall {
-    def unapply(m: MethodCall) = Some(m.getScope, m.getName, toScalaList(m.getArgs))
+    def unapply(m: MethodCall) = Some(m.getScope, m.getName, toScalaList(m.getArguments))
   }
   
   object Name {
@@ -182,11 +178,11 @@ trait Types {
   }
   
   object Parameter {
-    def unapply(p: Parameter) = Some(p.getId.getName)
+    def unapply(p: Parameter) = Some(p.getName)
   }
     
   object Return {
-    def unapply(r: Return) = Some(r.getExpr)
+    def unapply(r: Return) = Some(r.getExpression)
   }
   
   object Stmt {
@@ -198,35 +194,35 @@ trait Types {
   }
   
   object Type {
-    val Boolean = new PrimitiveType(PrimitiveType.Primitive.Boolean)
-    val Int = new PrimitiveType(PrimitiveType.Primitive.Int)
-    val Object = new ReferenceType(new ClassOrInterfaceType("Object"))
-    val String = new ReferenceType(new ClassOrInterfaceType("String"))
+    val Boolean = new PrimitiveType(PrimitiveType.Primitive.BOOLEAN)
+    val Int = new PrimitiveType(PrimitiveType.Primitive.INT)
+    val Object = new ClassOrInterfaceType("Object")
+    val String = new ClassOrInterfaceType("String")
     val Void = new VoidType()
   }
     
   object Unary {
-    val positive = UnaryExpr.Operator.positive
-    val negative = UnaryExpr.Operator.negative
-    val preIncrement = UnaryExpr.Operator.preIncrement
-    val preDecrement = UnaryExpr.Operator.posDecrement
-    val not = UnaryExpr.Operator.not
-    val inverse = UnaryExpr.Operator.inverse
-    val posIncrement = UnaryExpr.Operator.posIncrement
-    val posDecrement = UnaryExpr.Operator.posDecrement
-    def unapply(u: Unary) = Some(u.getOperator, u.getExpr)
+    val positive = UnaryExpr.Operator.PLUS
+    val negative = UnaryExpr.Operator.MINUS
+    val preIncrement = UnaryExpr.Operator.PREFIX_INCREMENT
+    val preDecrement = UnaryExpr.Operator.POSTFIX_DECREMENT
+    val not = UnaryExpr.Operator.LOGICAL_COMPLEMENT
+    val inverse = UnaryExpr.Operator.BITWISE_COMPLEMENT
+    val posIncrement = UnaryExpr.Operator.POSTFIX_INCREMENT
+    val posDecrement = UnaryExpr.Operator.POSTFIX_DECREMENT
+    def unapply(u: Unary) = Some(u.getOperator, u.getExpression)
   }
   
   object Variable {
-    def unapply(v: VariableDeclarator) = Some(v.getId.getName, v.getInit)    
+    def unapply(v: VariableDeclarator) = Some(v.getName, v.getInitializer)    
   }
   
   object VariableDeclaration {
     def apply(mod: Int, name: String, t: Type): VariableDeclaration = {
-      val variable = new VariableDeclarator(new VariableDeclaratorId(name))
+      val variable = new VariableDeclarator(t, name)
       new VariableDeclaration(mod, t, variable :: Nil)
     }
-    def unapply(v: VariableDeclaration) = Some(v.getType, toScalaList(v.getVars))
+    def unapply(v: VariableDeclaration) = Some(v.getType, toScalaList(v.getVariables))
   }
   
   type Annotation = AnnotationExpr 
@@ -241,7 +237,7 @@ trait Types {
     
   type Block = BlockStmt
   
-  type BodyDecl = BodyDeclaration
+  type BodyDecl = BodyDeclaration[_]
   
   type BooleanLiteral = BooleanLiteralExpr
   
@@ -325,7 +321,7 @@ trait Types {
   
   type Type = com.github.javaparser.ast.`type`.Type
 
-  type TypeDecl = com.github.javaparser.ast.body.TypeDeclaration
+  type TypeDecl = com.github.javaparser.ast.body.TypeDeclaration[_]
   
   type Unary = UnaryExpr
   
@@ -333,10 +329,8 @@ trait Types {
   
   type VariableDeclaration = VariableDeclarationExpr
   
-  //type VariableDeclarator = com.github.javaparser.ast.body.VariableDeclarator
+  type VariableDeclarator = com.github.javaparser.ast.body.VariableDeclarator
   
-  type VariableDeclaratorId = com.github.javaparser.ast.body.VariableDeclaratorId
-
   type VoidType = com.github.javaparser.ast.`type`.VoidType
   
 }

@@ -13,10 +13,8 @@
  */
 package com.mysema.scalagen
 
-import com.github.javaparser.ast.body.ModifierSet
-import java.util.ArrayList
-import com.mysema.scala.BeanUtils
 import UnitTransformer._
+import com.github.javaparser.ast.expr.Name
 
 /**
  * BeanProperties turns field + accessor combinations into @BeanProperty annotated 
@@ -25,8 +23,8 @@ import UnitTransformer._
 class BeanProperties(targetVersion: ScalaVersion) extends UnitTransformerBase with BeanHelpers {
   
   val BEAN_PROPERTY_IMPORT =
-    if (targetVersion >= Scala210) new Import("scala.beans.{BeanProperty, BooleanBeanProperty}", false, false)
-    else new Import("scala.reflect.{BeanProperty, BooleanBeanProperty}", false, false)
+    if (targetVersion >= Scala210) new Import(new Name("scala.beans.{BeanProperty, BooleanBeanProperty}"), false, false)
+    else new Import(new Name("scala.reflect.{BeanProperty, BooleanBeanProperty}"), false, false)
      
   def transform(cu: CompilationUnit): CompilationUnit = {
     cu.accept(this, cu).asInstanceOf[CompilationUnit] 
@@ -45,7 +43,7 @@ class BeanProperties(targetVersion: ScalaVersion) extends UnitTransformerBase wi
    
     // fields with accessors
     val fields = t.getMembers.collect { case f: Field => f }
-      .filter(_.getModifiers.isPrivate)
+      .filter(_.isPrivate)
       .flatMap( f => f.getVariables.map( v => (v.getId.getName,v,f) ))
       .filter { case (name,_,_) =>  getters.contains(name) }
           
@@ -57,7 +55,7 @@ class BeanProperties(targetVersion: ScalaVersion) extends UnitTransformerBase wi
       setters.get(name).foreach { s => t.setMembers(t.getMembers.filterNot(_ == s)) }
       
       // make field public
-      val isFinal = field.getModifiers.isFinal
+      val isFinal = field.isFinal
        field.setModifiers(getter.getModifiers
           .addModifier(if (isFinal) ModifierSet.FINAL else 0))
       val annotation = if (getter.getName.startsWith("is")) BOOLEAN_BEAN_PROPERTY else BEAN_PROPERTY 
@@ -67,7 +65,7 @@ class BeanProperties(targetVersion: ScalaVersion) extends UnitTransformerBase wi
       
       // handle lazy init
       if (isLazyCreation(getter.getBody, name)) {
-        variable.setInit(getLazyInit(getter.getBody))
+        variable.setInitializer(getLazyInit(getter.getBody))
         field.addModifier(LAZY)
         if (!setters.contains(name)) {
           field.addModifier(ModifierSet.FINAL)

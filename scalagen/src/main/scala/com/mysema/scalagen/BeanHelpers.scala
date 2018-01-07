@@ -46,6 +46,6 @@ trait BeanHelpers extends Helpers {
   
   def getProperty(method: Method) = {
     val name = method.getName
-    BeanUtils.uncapitalize(name.substring(if (name.startsWith("is")) 2 else 3))
+    BeanUtils.uncapitalize(name.asString.substring(if (name.asString.startsWith("is")) 2 else 3))
   }
 }

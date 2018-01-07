@@ -13,7 +13,6 @@
  */
 package com.mysema.scalagen
 
-import com.github.javaparser.ast.body.ModifierSet
 import java.util.ArrayList
 import UnitTransformer._
 
@@ -56,20 +55,20 @@ class Constructors extends UnitTransformerBase {
     // add empty constructor invocation for all other constructors without
     // constructor invocations
     constr.filter(_ != c).foreach { c =>
-      if (c.getBlock.isEmpty) {// || !c.getBlock()(0).isInstanceOf[ConstructorInvocation]) {
-        c.getBlock.add(new ConstructorInvocation(true, null, null))
+      if (c.getBody.isEmpty) {// || !c.getBlock()(0).isInstanceOf[ConstructorInvocation]) {
+        c.getBody.add(new ConstructorInvocation(true, null, null))
       }
     }
 
-    if (!c.getBlock.isEmpty &&
-        !c.getBlock.getStmts.filter(!_.isInstanceOf[ConstructorInvocation]).isEmpty) {
+    if (!c.getBody.isEmpty &&
+        !c.getBody.getStatements.filter(!_.isInstanceOf[ConstructorInvocation]).isEmpty) {
 
       processStatements(cu, t, c)
 
-      if (!c.getBlock.isEmpty &&
-          !(c.getBlock.size == 1 && c.getBlock()(0).isInstanceOf[ConstructorInvocation] &&
-          !c.getBlock()(0).asInstanceOf[ConstructorInvocation].isThis())) {
-        val initializer = new Initializer(false, c.getBlock)
+      if (!c.getBody.isEmpty &&
+          !(c.getBody.size == 1 && c.getBody()(0).isInstanceOf[ConstructorInvocation] &&
+          !c.getBody()(0).asInstanceOf[ConstructorInvocation].isThis)) {
+        val initializer = new Initializer(false, c.getBody)
         t.getMembers.add(t.getMembers.indexOf(c), initializer)
       }
 
@@ -78,9 +77,9 @@ class Constructors extends UnitTransformerBase {
     // add missing delegations
     t.getMembers.collect { case c: Constructor => c }.filter(_ != c)
       .foreach { c =>
-        if (!c.getBlock.isEmpty && !c.getBlock()(0).isInstanceOf[ConstructorInvocation]) {
+        if (!c.getBody.isEmpty && !c.getBody()(0).isInstanceOf[ConstructorInvocation]) {
           //c.getBlock.getStmts.add(0, new ConstructorInvocation(true, null, null))
-          c.getBlock.setStmts(new ConstructorInvocation(true, null, null) :: c.getBlock.getStmts)
+          c.getBody.setStmts(new ConstructorInvocation(true, null, null) :: c.getBody.getStmts)
         }
       }
     t
@@ -88,13 +87,13 @@ class Constructors extends UnitTransformerBase {
 
   private def processStatements(cu: CompilationUnit, t: TypeDecl, c: Constructor) {
     val fields = t.getMembers.collect { case f: Field => f }
-    val variables = fields.flatMap(_.getVariables).map(v => (v.getId.getName, v)).toMap
-    val variableToField = fields.flatMap(f => f.getVariables.map(v => (v.getId.getName,f)) ).toMap
+    val variables = fields.flatMap(_.getVariables).map(v => (v.getName, v)).toMap
+    val variableToField = fields.flatMap(f => f.getVariables.map(v => (v.getName,f)) ).toMap
 
     var replacements = Map[String, String]()
     
     // go through statements and map assignments to variable initializers
-    c.getBlock.getStmts.collect { case s: ExpressionStmt => s }
+    c.getBody.getStatements.collect { case s: ExpressionStmt => s }
       .filter(isAssignment(_))
       .foreach { s =>
       val assign = s.getExpression.asInstanceOf[Assign]
@@ -106,19 +105,19 @@ class Constructors extends UnitTransformerBase {
         if (variables.contains(namedTarget.getName)) {
           if (assign.getValue.isInstanceOf[Name]) { // field = parameter
             val namedValue = assign.getValue.asInstanceOf[Name]
-            c.getParameters.find(_.getId.getName == namedValue.getName).foreach { param =>
+            c.getParameters.find(_.getName == namedValue.getName).foreach { param =>
               val field = variableToField(namedTarget.getName)
               // rename parameter to field name
-              param.setId(namedTarget.getName)
-              replacements = replacements.+((param.getId.getName, namedTarget.getName))
+              param.setName(namedTarget.getName)
+              replacements = replacements.+((param.getName, namedTarget.getName))
               copyAnnotationsAndModifiers(field, param)
               // remove field
               field.setVariables(field.getVariables.filterNot(_ == variables(namedTarget.getName)))
             }
           } else { // field = ?!?
-            variables(namedTarget.getName).setInit(assign.getValue)
+            variables(namedTarget.getName).setInitializer(assign.getValue)
           }
-          c.getBlock.remove(s)
+          c.getBody.remove(s)
         }
       }
     }
@@ -128,7 +127,7 @@ class Constructors extends UnitTransformerBase {
     
     // modify variables in other statements
     val renameTransformer = new RenameTransformer(replacements)
-    c.getBlock.setStmts(c.getBlock.getStmts.map(stmt => {
+    c.getBody.setStatements(c.getBody.getStatements.map(stmt => {
       if (!stmt.isInstanceOf[ExpressionStmt]) {
         stmt.accept(renameTransformer, cu).asInstanceOf[Statement]
       } else {
@@ -141,10 +140,10 @@ class Constructors extends UnitTransformerBase {
   private def processFieldAssign(s: ExpressionStmt, assign: Assign, fieldAccess: FieldAccess,
       c: Constructor, variables: Map[String, Variable], variableToField: Map[String, Field] ) {
     if (fieldAccess.getScope.isInstanceOf[This] &&
-        variables.contains(fieldAccess.getField)) {
-      if (fieldAccess.getField == assign.getValue.toString) {
-        val field = variableToField(fieldAccess.getField)
-        c.getParameters.find(_.getId.getName == fieldAccess.getField)
+        variables.contains(fieldAccess.getName.asString()) {
+      if (fieldAccess.getName.asString == assign.getValue.toString) {
+        val field = variableToField(fieldAccess.getName)
+        c.getParameters.find(_.getName == fieldAccess.getName)
           .foreach(copyAnnotationsAndModifiers(field,_))
         // remove field, as constructor parameter can be used
         //field.getVariables.remove(variables(fieldAccess.getField))
@@ -152,9 +151,9 @@ class Constructors extends UnitTransformerBase {
 
       } else {
         // remove statement, put init to field
-        variables(fieldAccess.getField).setInit(assign.getValue)
+        variables(fieldAccess.getName).setInitializer(assign.getValue)
       }
-      c.getBlock.remove(s)
+      c.getBody.remove(s)
     }
   }
 

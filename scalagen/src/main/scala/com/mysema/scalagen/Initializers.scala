@@ -36,12 +36,12 @@ class Initializers extends UnitTransformerBase {
     val initializers = t.getMembers.collect { case i: Initializer => i }
     if (!initializers.isEmpty) {
       val fields = t.getMembers.collect { case f: Field => f }
-      val variables = fields.flatMap(_.getVariables).map(v => (v.getId.getName, v)).toMap
+      val variables = fields.flatMap(_.getVariables).map(v => (v.getName, v)).toMap
       
       for (i <- initializers) {
-        i.getBlock.setStmts(i.getBlock.getStmts.filter(_ match {
+        i.getBody.setStatements(i.getBody.getStatements.filter(_ match {
           case Stmt((t: Name) set v) if variables.contains(t.getName) => {
-            variables(t.getName).setInit(v)
+            variables(t.getName).setInitializer(v)
             false
           }
           case _ => true
@@ -49,7 +49,7 @@ class Initializers extends UnitTransformerBase {
       }
       
       // remove empty initializers
-      val emptyInitializerBlocks = initializers.filter(_.getBlock.isEmpty)
+      val emptyInitializerBlocks = initializers.filter(_.getBody.isEmpty)
       t.setMembers( t.getMembers.filterNot(emptyInitializerBlocks.contains) )      
     }
     t

@@ -28,7 +28,7 @@ class Rethrows extends UnitTransformerBase {
   }  
     
   override def visit(n: Try, arg: CompilationUnit): Node = withCommentsFrom(n, arg) {
-    if (n.getFinallyBlock == null && !isEmpty(n.getCatchs) && n.getCatchs.filter(isPrinted).isEmpty) {
+    if (n.getFinallyBlock == null && !isEmpty(n.getCatchClauses) && n.getCatchClauses.filter(isPrinted).isEmpty) {
       extract(super.visit(n.getTryBlock, arg).asInstanceOf[Statement])
     } else {
       super.visit(n, arg)

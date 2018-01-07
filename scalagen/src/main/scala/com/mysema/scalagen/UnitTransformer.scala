@@ -18,7 +18,6 @@ import com.github.javaparser.ast.body._
 import com.github.javaparser.ast.expr._
 import com.github.javaparser.ast.stmt._
 import com.github.javaparser.ast.`type`._
-import com.github.javaparser.ast.visitor.ModifierVisitorAdapter
 import com.github.javaparser.ast.CompilationUnit
 import com.github.javaparser.ast.ImportDeclaration
 import java.util.ArrayList
@@ -27,9 +26,6 @@ object UnitTransformer extends Helpers with Types {
   
   @inline
   implicit def toNameExpr(s: String) = new NameExpr(s)
-  
-  @inline
-  implicit def toVariableDeclaratorId(s: String) = new VariableDeclaratorId(s)
   
   @inline 
   implicit def toBlock(s: Statement) = new Block(s :: Nil)
@@ -46,7 +42,7 @@ object UnitTransformer extends Helpers with Types {
         
     override def visit(n: CompilationUnit, arg: CompilationUnit): Node = withCommentsFrom(n, arg) {
       val rv = new CompilationUnit()
-      rv.setPackage(filter(n.getPackage, arg))
+      rv.setPackageDeclaration(filter(n.getPackageDeclaration, arg))
       rv.setImports(filter(n.getImports, arg))
       // arg is replaced with converted instance here
       rv.setTypes(filter(n.getTypes, rv)) 

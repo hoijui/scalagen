@@ -13,13 +13,16 @@
  */
 package com.mysema.scalagen
 
-import java.io.{File, ByteArrayInputStream}
+import java.io.{ByteArrayInputStream, File}
+
 import com.github.javaparser.JavaParser
-import com.github.javaparser.ast.{ImportDeclaration, CompilationUnit}
+import com.github.javaparser.ast.{CompilationUnit, ImportDeclaration, NodeList}
 import org.apache.commons.io.FileUtils
 import java.util.ArrayList
+
 import com.github.javaparser.ParseException
 import java.io.ByteArrayInputStream
+import java.nio.charset.Charset
 import java.util.regex.Pattern
 
 object Converter {
@@ -97,7 +100,7 @@ class Converter(encoding: String, transformers: List[UnitTransformer]) {
   
   def convertFile(in: File, out: File) {
     try {
-      val compilationUnit = JavaParser.parse(in, encoding)
+      val compilationUnit = JavaParser.parse(in, Charset.forName(encoding))
       val sources = toScala(compilationUnit)   
       FileUtils.writeStringToFile(out, sources, "UTF-8")  
     } catch {
@@ -106,13 +109,13 @@ class Converter(encoding: String, transformers: List[UnitTransformer]) {
   }
   
   def convert(javaSource: String, settings: ConversionSettings = ConversionSettings()): String = {
-    val compilationUnit = JavaParser.parse(new ByteArrayInputStream(javaSource.getBytes(encoding)), encoding)
+    val compilationUnit = JavaParser.parse(javaSource)
     toScala(compilationUnit, settings)
   }
   
   def toScala(unit: CompilationUnit, settings: ConversionSettings = ConversionSettings()): String = {
     if (unit.getImports == null) {
-      unit.setImports(new ArrayList[ImportDeclaration]())  
+      unit.setImports(new NodeList[ImportDeclaration]())  
     }    
     val transformed = transformers.foldLeft(unit) { case (u,t) => t.transform(u) }
     val visitor = new ScalaStringVisitor(settings)
