@@ -16,7 +16,6 @@ libraryDependencies ++= Seq(
   "com.google.code.findbugs" % "jsr305" % "3.0.1" % "test",
   "com.mysema.codegen" % "codegen" % "0.6.8" % "test",
   "javax.inject" % "javax.inject" % "1" % "test",
-
   "com.jsuereth" %% "scala-arm" % "1.4" % "test"
 )
 
