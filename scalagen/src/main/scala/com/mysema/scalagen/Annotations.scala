@@ -49,7 +49,7 @@ class Annotations(targetVersion: ScalaVersion) extends UnitTransformerBase {
     clazz
   }
   
-  private def createMembers(n: AnnotationDecl): NodeList[BodyDecl] = {
+  private def createMembers(n: AnnotationDecl): NodeList[BodyDecl[?]] = {
     // TODO : default values
     val params = n.getMembers.collect { case m: AnnotationMember => m }
       .map(m => new Parameter(PROPERTY, m.getType, m.getName.clone))
